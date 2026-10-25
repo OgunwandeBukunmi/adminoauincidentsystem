@@ -1,19 +1,94 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import { uploadImages } from "../services/cloudinaryUpload"
+import {
+  useState, useEffect, useMemo, useCallback, useRef, type ChangeEvent,
+  type DragEvent,
+  type FormEvent,
+  type ReactNode,
+  type SetStateAction,
+  type Dispatch,
+} from "react"
+import { uploadImages, type UploadedImage } from "../services/cloudinaryUpload"
+
+type PostStatus = "pending" | "approved" | "rejected";
+
+type IncidentPost = {
+  id: string;
+  title: string;
+  category: string;
+  incident_time_estimate?: string;
+  post_message?: string;
+  images?: string[];
+  status: PostStatus;
+  isParentPost?: boolean;
+  parentPostLinks?: string[];
+  post_time?: string | Date | null;
+  createdAt?: string | Date | null;
+  createdBy?: string;
+  role?: string;
+  deletedAt?: string | Date | null;
+  deletedBy?: string;
+};
+
+type PostForm = {
+  title: string;
+  category: string;
+  incident_time_estimate: string;
+  post_message: string;
+};
+
+type PostFilters = {
+  status: PostStatus | "all";
+  category: string;
+  keyword: string;
+};
+
+type DashboardCounts = {
+  total: number;
+  approved: number;
+  pending: number;
+  rejected: number;
+};
+
+type ApiResponse = {
+  message?: string;
+  posts?: IncidentPost[];
+  post?: IncidentPost;
+  nextCursor?: string | null;
+  hasMore?: boolean;
+  username?: string;
+  uid?: string;
+};
 
 const API = "http://localhost:5000/api/admin"
 
 const STATUS = {
-  pending: { label: "Pending", badge: "bg-amber-100 text-amber-800", dot: "bg-amber-500" },
-  approved: { label: "Approved", badge: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500" },
-  rejected: { label: "Rejected", badge: "bg-rose-100 text-rose-800", dot: "bg-rose-500" },
-}
+  pending: {
+    label: "Pending",
+    badge: "bg-amber-100 text-amber-800",
+    dot: "bg-amber-500",
+  },
+  approved: {
+    label: "Approved",
+    badge: "bg-emerald-100 text-emerald-800",
+    dot: "bg-emerald-500",
+  },
+  rejected: {
+    label: "Rejected",
+    badge: "bg-rose-100 text-rose-800",
+    dot: "bg-rose-500",
+  },
+} as const;
 
-// Maps the dropdown value to the backend route that sets it.
-// NOTE: your backend has no "/pending" route yet - see the snippet in the chat reply.
-const STATUS_ROUTE = { approved: "approve", rejected: "reject", pending: "pending" }
 
-async function api(path, options = {}) {
+const STATUS_ROUTE: Record<PostStatus, string> = {
+  approved: "approve",
+  rejected: "reject",
+  pending: "pending",
+};
+
+async function api(
+  path: string,
+  options: RequestInit = {}
+): Promise<ApiResponse> {
   const res = await fetch(`${API}${path}`, {
     ...options,
     headers: {
@@ -21,23 +96,35 @@ async function api(path, options = {}) {
       Authorization: `Bearer ${localStorage.getItem("token")}`,
       ...options.headers,
     },
-  })
-  const data = await res.json().catch(() => ({}))
+  });
+
+  const data: ApiResponse = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const err = new Error(data.message || `Request failed (${res.status})`)
-    throw err
+    throw new Error(data.message || `Request failed (${res.status})`);
   }
-  return data
+
+  return data;
+}
+function formatDate(
+  value: string | Date | null | undefined
+): string {
+  if (!value) return "Not available";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleString([], {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
-function formatDate(value) {
-  if (!value) return "—"
-  const d = new Date(value)
-  return isNaN(d) ? String(value) : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
-}
-
-function StatusBadge({ status }) {
-  const s = STATUS[status] ?? STATUS.pending
+function StatusBadge({ status }: { status: PostStatus | undefined }) {
+  const s = (status ? STATUS[status] : undefined) ?? STATUS.pending
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${s.badge}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
@@ -46,9 +133,16 @@ function StatusBadge({ status }) {
   )
 }
 
-function Modal({ title, onClose, children, wide, extraWide, zIndex = "z-50" }) {
+function Modal({ title, onClose, children, wide, extraWide, zIndex = "z-50" }: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  wide?: boolean;
+  extraWide?: boolean;
+  zIndex?: string;
+}) {
   useEffect(() => {
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation()
         onClose()
@@ -89,7 +183,10 @@ function Modal({ title, onClose, children, wide, extraWide, zIndex = "z-50" }) {
 const inputCls =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/30"
 
-function Field({ label, children }) {
+function Field({ label, children }: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
@@ -100,7 +197,19 @@ function Field({ label, children }) {
 
 /* ---------- Select & Link Posts Modal ---------- */
 
-function LinkPostsModal({ posts, categories, selectedLinks, onToggle, onClose }) {
+function LinkPostsModal({
+  posts,
+  categories,
+  selectedLinks,
+  onToggle,
+  onClose,
+}: {
+  posts: IncidentPost[];
+  categories: string[];
+  selectedLinks: string[];
+  onToggle: (postId: string) => void;
+  onClose: () => void;
+}) {
   const [keyword, setKeyword] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -297,25 +406,44 @@ function LinkPostsModal({ posts, categories, selectedLinks, onToggle, onClose })
 
 /* ---------- Create post / parent post ---------- */
 
-function CreatePostModal({ isParent, posts, categories, onClose, onCreated }) {
-  const [form, setForm] = useState({
+function CreatePostModal({
+  isParent,
+  posts,
+  categories,
+  onClose,
+  onCreated,
+}: {
+  isParent: boolean;
+  posts: IncidentPost[];
+  categories: string[];
+  onClose: () => void;
+  onCreated: (post: IncidentPost) => void;
+}) {
+  const [form, setForm] = useState<PostForm>({
     title: "",
     category: "",
     incident_time_estimate: "",
     post_message: "",
-  })
-  const [imageFiles, setImageFiles] = useState([])
-  const [isDragging, setIsDragging] = useState(false)
-  const fileInputRef = useRef(null)
+  });
 
-  const [links, setLinks] = useState([])
-  const [linkSearch, setLinkSearch] = useState("")
-  const [showLinkModal, setShowLinkModal] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState("")
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [links, setLinks] = useState<string[]>([]);
+  const [linkSearch, setLinkSearch] = useState("");
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const set = (key: keyof PostForm) =>
+    (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setForm((current) => ({
+        ...current,
+        [key]: e.target.value,
+      }));
+    };
   const linkable = useMemo(() => {
     const q = linkSearch.trim().toLowerCase()
     return posts
@@ -324,10 +452,15 @@ function CreatePostModal({ isParent, posts, categories, onClose, onCreated }) {
       .slice(0, 50)
   }, [posts, linkSearch])
 
-  const toggleLink = (id) =>
-    setLinks((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]))
+  const toggleLink = (id: string) => {
+    setLinks((current) =>
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id]
+    );
+  };
 
-  const handleFiles = (incomingFiles) => {
+  const handleFiles = (incomingFiles: FileList) => {
     setError("")
     const newFiles = Array.from(incomingFiles)
     if (imageFiles.length + newFiles.length > 5) {
@@ -349,11 +482,11 @@ function CreatePostModal({ isParent, posts, categories, onClose, onCreated }) {
     setImageFiles((prev) => [...prev, ...newFiles])
   }
 
-  const removeImage = (indexToRemove) => {
+  const removeImage = (indexToRemove: number) => {
     setImageFiles((prev) => prev.filter((_, i) => i !== indexToRemove))
   }
 
-  const onDragOver = (e) => {
+  const onDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     setIsDragging(true)
   }
@@ -362,7 +495,7 @@ function CreatePostModal({ isParent, posts, categories, onClose, onCreated }) {
     setIsDragging(false)
   }
 
-  const onDrop = (e) => {
+  const onDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     setIsDragging(false)
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
@@ -370,7 +503,7 @@ function CreatePostModal({ isParent, posts, categories, onClose, onCreated }) {
     }
   }
 
-  const submit = async (e) => {
+  const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError("")
 
@@ -382,31 +515,34 @@ function CreatePostModal({ isParent, posts, categories, onClose, onCreated }) {
 
     setSubmitting(true)
     try {
-      let imageUrls = []
+      let imageUrls: string[] = [];
+
       if (imageFiles.length > 0) {
-        const uploaded = await uploadImages(imageFiles)
-        imageUrls = uploaded.map((img) => img.url)
+        const uploaded = (await uploadImages(imageFiles)) as UploadedImage[];
+        imageUrls = uploaded.map((img) => img.url);
       }
 
       const payload = {
         title: title.trim(),
         category: category.trim(),
         incident_time_estimate: incident_time_estimate.trim(),
-        post_time: new Date().toISOString(),
         post_message: post_message.trim(),
         images: imageUrls,
+        post_time: new Date().toISOString(),
         isParentPost: isParent,
         parentPostLinks: links,
-      }
+      };
 
       const data = await api(isParent ? "/parent-post" : "/post", {
         method: "POST",
         body: JSON.stringify(payload),
       })
-      onCreated(data.post)
+      if (data.post) {
+        onCreated(data.post)
+      }
       onClose()
-    } catch (err) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
     } finally {
       setSubmitting(false)
     }
@@ -663,24 +799,30 @@ function CreatePostModal({ isParent, posts, categories, onClose, onCreated }) {
 
 /* ---------- Post preview + status + delete ---------- */
 
-function PostModal({ post, allPosts, onClose, onStatusChange, onDelete }) {
+function PostModal({ post, allPosts, onClose, onStatusChange, onDelete }: {
+  post: IncidentPost;
+  allPosts: IncidentPost[];
+  onClose: () => void;
+  onStatusChange: (id: string, status: PostStatus) => void;
+  onDelete: (id: string) => void;
+}) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
 
   const linked = (post.parentPostLinks ?? [])
     .map((id) => allPosts.find((p) => p.id === id))
-    .filter(Boolean)
+    .filter((p): p is IncidentPost => Boolean(p))
 
-  const changeStatus = async (e) => {
-    const next = e.target.value
+  const changeStatus = async (e: ChangeEvent<HTMLSelectElement>) => {
+    const next = e.target.value as PostStatus
     if (next === post.status) return
     setBusy(true)
     setError("")
     try {
       await api(`/posts/${post.id}/${STATUS_ROUTE[next]}`, { method: "PUT" })
       onStatusChange(post.id, next)
-    } catch (err) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(false)
     }
@@ -694,8 +836,12 @@ function PostModal({ post, allPosts, onClose, onStatusChange, onDelete }) {
       await api(`/posts/${post.id}`, { method: "DELETE" })
       onDelete(post.id)
       onClose()
-    } catch (err) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred."
+      );
       setBusy(false)
     }
   }
@@ -739,9 +885,9 @@ function PostModal({ post, allPosts, onClose, onStatusChange, onDelete }) {
 
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{post.post_message}</p>
 
-        {post.images?.length > 0 && (
+        {(post.images?.length ?? 0) > 0 && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {post.images.map((src, i) => (
+            {post.images!.map((src, i) => (
               <a key={i} href={src} target="_blank" rel="noreferrer">
                 <img
                   src={src}
@@ -791,7 +937,7 @@ function PostModal({ post, allPosts, onClose, onStatusChange, onDelete }) {
             <select
               value={post.status}
               onChange={changeStatus}
-              disabled={busy || post.deletedAt}
+              disabled={Boolean(busy || post.deletedAt)}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/30 disabled:opacity-60"
             >
               {Object.entries(STATUS).map(([value, s]) => (
@@ -816,7 +962,12 @@ function PostModal({ post, allPosts, onClose, onStatusChange, onDelete }) {
 
 /* ---------- Pages ---------- */
 
-function HomePage({ counts, onCreate, onCreateParent, onReview }) {
+function HomePage({ counts, onCreate, onCreateParent, onReview }: {
+  counts: DashboardCounts;
+  onCreate: () => void;
+  onCreateParent: () => void;
+  onReview: () => void;
+}) {
   const cards = [
     { key: "total", label: "All posts", value: counts.total, tone: "text-slate-900" },
     { key: "approved", label: "Approved", value: counts.approved, tone: "text-emerald-700" },
@@ -859,7 +1010,13 @@ function HomePage({ counts, onCreate, onCreateParent, onReview }) {
   )
 }
 
-function PostsPage({ posts, categories, filters, setFilters, onSelect }) {
+function PostsPage({ posts, categories, filters, setFilters, onSelect }: {
+  posts: IncidentPost[];
+  categories: string[];
+  filters: PostFilters;
+  setFilters: Dispatch<SetStateAction<PostFilters>>;
+  onSelect: (post: IncidentPost) => void;
+}) {
   const filtered = useMemo(() => {
     const q = filters.keyword.trim().toLowerCase()
     return posts.filter((p) => {
@@ -873,7 +1030,10 @@ function PostsPage({ posts, categories, filters, setFilters, onSelect }) {
     })
   }, [posts, filters])
 
-  const update = (key) => (e) => setFilters((f) => ({ ...f, [key]: e.target.value }))
+  const update =
+    (key: keyof PostFilters) =>
+    (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setFilters((f) => ({ ...f, [key]: e.target.value }))
 
   return (
     <div className="space-y-4">
@@ -960,36 +1120,42 @@ function PostsPage({ posts, categories, filters, setFilters, onSelect }) {
 /* ---------- Dashboard ---------- */
 
 export default function Dashboard() {
-  const [page, setPage] = useState("home")
-  const [posts, setPosts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-  const [admin, setAdmin] = useState(
-    localStorage.getItem("username") || ""
-  )
-  const [createMode, setCreateMode] = useState(null) // null | "post" | "parent"
-  const [selectedId, setSelectedId] = useState(null)
-  const [filters, setFilters] = useState({ status: "all", category: "all", keyword: "" })
+  const [page, setPage] = useState<"home" | "posts">("home");
+  const [posts, setPosts] = useState<IncidentPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
+  const [admin, setAdmin] = useState(
+    () => localStorage.getItem("username") || ""
+  );
+
+  const [createMode, setCreateMode] = useState<"post" | "parent" | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const [filters, setFilters] = useState<PostFilters>({
+    status: "all",
+    category: "all",
+    keyword: "",
+  });
   // GET /posts is cursor paginated: { posts, nextCursor, hasMore }. Walk every page.
   const fetchPosts = useCallback(async () => {
     setLoading(true)
     setError("")
     try {
-      let all = []
-      let cursor = null
+      let all: IncidentPost[] = []
+      let cursor: string | null | undefined = null
       let hasMore = true
       while (hasMore) {
         const qs = new URLSearchParams({ limit: "100" })
         if (cursor) qs.set("cursor", cursor)
         const data = await api(`/posts?${qs}`)
-        all = all.concat(data.posts)
+        all = all.concat(data.posts ?? [])
         cursor = data.nextCursor
-        hasMore = data.hasMore && !!cursor
+        hasMore = Boolean(data.hasMore && cursor)
       }
       setPosts(all)
-    } catch (err) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoading(false)
     }
@@ -1002,7 +1168,7 @@ export default function Dashboard() {
   // POST /verify-token returns the signed-in admin's email.
   useEffect(() => {
     api("/verify-token", { method: "POST" })
-      .then((data) => setAdmin((current) => current || data.username || data.uid))
+      .then((data) => setAdmin((current) => current || data.username || data.uid || "Admin"))
       .catch(() => { })
   }, [])
 
@@ -1023,34 +1189,62 @@ export default function Dashboard() {
 
   const selected = posts.find((p) => p.id === selectedId) ?? null
 
-  const handleCreated = (post) => setPosts((prev) => [post, ...prev])
+  const handleCreated = (post: IncidentPost) => {
+    setPosts((prev) => [post, ...prev]);
+  };
 
-  const handleStatusChange = (id, status) =>
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)))
-
-  const handleDelete = (id) =>
+  const handleStatusChange = (
+    id: string,
+    status: PostStatus
+  ) => {
     setPosts((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, status: "rejected", deletedAt: new Date().toISOString() } : p
+      prev.map((post) =>
+        post.id === id ? { ...post, status } : post
       )
-    )
+    );
+  };
+
+  const handleDelete = (id: string) => {
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === id
+          ? {
+            ...post,
+            status: "rejected",
+            deletedAt: new Date().toISOString(),
+          }
+          : post
+      )
+    );
+  };
 
   const startReviewing = () => {
-    setFilters({ status: "pending", category: "all", keyword: "" })
-    setPage("posts")
-  }
+    setFilters({
+      status: "pending",
+      category: "all",
+      keyword: "",
+    });
+    setPage("posts");
+  };
 
-  const goTo = (target) => {
-    if (target === "posts") setFilters({ status: "all", category: "all", keyword: "" })
-    setPage(target)
-  }
+  const goTo = (target: "home" | "posts") => {
+    if (target === "posts") {
+      setFilters({
+        status: "all",
+        category: "all",
+        keyword: "",
+      });
+    }
+
+    setPage(target);
+  };
 
   const signOut = () => {
     localStorage.removeItem("token")
     window.location.reload()
   }
 
-  const navItem = (key, label, badge) => (
+  const navItem = (key: "home" | "posts", label: string, badge: number = 0) => (
     <button
       onClick={() => goTo(key)}
       aria-current={page === key ? "page" : undefined}
