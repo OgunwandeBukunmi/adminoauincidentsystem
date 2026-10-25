@@ -58,7 +58,11 @@ type ApiResponse = {
   uid?: string;
 };
 
-const API = "http://localhost:5000/api/admin"
+let API = import.meta.env.VITE_API_URL
+if (import.meta.env.MODE === "production") {
+  API = "http://localhost:5000/api/admin"
+}
+
 
 const STATUS = {
   pending: {
@@ -1032,8 +1036,8 @@ function PostsPage({ posts, categories, filters, setFilters, onSelect }: {
 
   const update =
     (key: keyof PostFilters) =>
-    (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-      setFilters((f) => ({ ...f, [key]: e.target.value }))
+      (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+        setFilters((f) => ({ ...f, [key]: e.target.value }))
 
   return (
     <div className="space-y-4">
