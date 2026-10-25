@@ -11,7 +11,7 @@ import {
   getDocs,
   limit,
 } from "firebase/firestore";
-import { auth, db } from "./config/firebase.js";
+import { auth, db } from "./config/firebase";
 
 
 function LoginPage() {
@@ -24,7 +24,11 @@ function LoginPage() {
   const [usernameFocused, setUsernameFocused] = useState(false)
   const [passwordFocused, setPasswordFocused] = useState(false)
 
-  async function loginWithUsername(username, password) {
+  async function loginWithUsername(username: string, password: string): Promise<{
+    uid: string;
+    email: string | null;
+    token: string;
+  }> {
     const normalizedUsername = username.trim().toLowerCase();
 
     // Find the username in Firestore
@@ -49,7 +53,6 @@ function LoginPage() {
     }
 
     // Sign in with Firebase Authentication
-    console.log(email)
     const userCredential = await signInWithEmailAndPassword(
       auth,
       email,
@@ -58,7 +61,6 @@ function LoginPage() {
 
     // Get the ID token for future backend requests
     const token = await userCredential.user.getIdToken();
-    console.log(token)
 
     return {
       uid: userCredential.user.uid,
@@ -84,11 +86,15 @@ function LoginPage() {
       localStorage.setItem('uid', userCredential.uid)
       localStorage.setItem('token', userCredential.token)
       navigate('/admin/dashboard')
+    } catch (error: unknown) {
+      console.error("Login failed:", error)
+      setError(
+        error instanceof Error
+          ? error.message
+          : "An unexpected login error occurred."
+      )
+    } finally {
       setIsLoading(false)
-    } catch (error: any) {
-      console.log(error)
-      setIsLoading(false)
-      setError(error.message)
     }
   }
 
