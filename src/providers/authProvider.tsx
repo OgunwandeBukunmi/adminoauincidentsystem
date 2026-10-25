@@ -4,7 +4,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL =
+  import.meta.env.VITE_VERCEL_ENV === "production"
+    ? "https://oauincidentreportsystem-backend.onrender.com"
+    : "http://localhost:5000"
 
 type AuthStatus = 'pending' | 'authenticated' | 'unauthenticated';
 
