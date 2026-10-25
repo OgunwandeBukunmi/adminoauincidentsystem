@@ -8,6 +8,7 @@ import {
 } from "react"
 import { uploadImages, type UploadedImage } from "../services/cloudinaryUpload"
 
+
 type PostStatus = "pending" | "approved" | "rejected";
 
 type IncidentPost = {
@@ -58,10 +59,10 @@ type ApiResponse = {
   uid?: string;
 };
 
-let API = import.meta.env.VITE_API_URL
-if (import.meta.env.MODE === "production") {
-  API = "http://localhost:5000/api/admin"
-}
+const API =
+  import.meta.env.VITE_VERCEL_ENV === "production"
+    ? "https://oauincidentreportsystem-backend.onrender.com/api/admin"
+    : "http://localhost:5000/api/admin"
 
 
 const STATUS = {
