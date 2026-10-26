@@ -17,6 +17,7 @@ type IncidentPost = {
   category: string;
   incident_time_estimate?: string;
   post_message?: string;
+  location: string;
   images?: string[];
   status: PostStatus;
   isParentPost?: boolean;
@@ -34,6 +35,7 @@ type PostForm = {
   category: string;
   incident_time_estimate: string;
   post_message: string;
+  location: string
 };
 
 type PostFilters = {
@@ -431,6 +433,7 @@ function CreatePostModal({
     category: "",
     incident_time_estimate: "",
     post_message: "",
+    location: "",
   });
 
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -514,7 +517,7 @@ function CreatePostModal({
     e.preventDefault()
     setError("")
 
-    const { title, category, incident_time_estimate, post_message } = form
+    const { title, category, incident_time_estimate, post_message, location } = form
     if (!title || !category || !incident_time_estimate || !post_message) {
       setError("Fill in every field except images.")
       return
@@ -538,6 +541,7 @@ function CreatePostModal({
         post_time: new Date().toISOString(),
         isParentPost: isParent,
         parentPostLinks: links,
+        location
       };
 
       const data = await api(isParent ? "/parent-post" : "/post", {
@@ -585,6 +589,9 @@ function CreatePostModal({
             />
           </Field>
         </div>
+        <Field label="Location">
+          <input className={inputCls} value={form.location} onChange={set("location")} />
+        </Field>
 
         <Field label="Message">
           <textarea rows={5} className={inputCls} value={form.post_message} onChange={set("post_message")} />
@@ -891,6 +898,7 @@ function PostModal({ post, allPosts, onClose, onStatusChange, onDelete }: {
         </dl>
 
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{post.post_message}</p>
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">Location: {post.location || "No location"}</p>
 
         {(post.images?.length ?? 0) > 0 && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -1111,7 +1119,11 @@ function PostsPage({ posts, categories, filters, setFilters, onSelect }: {
                 </td>
                 <td className="px-4 py-3 text-slate-700">{p.category}</td>
                 <td className="px-4 py-3">
-                  <StatusBadge status={p.status} />
+                  {p.deletedBy ? (
+                    <span className="text-slate-500">Deleted by admin</span>
+                  ) : (
+                    <StatusBadge status={p.status} />
+                  )}
                 </td>
                 <td className="px-4 py-3 text-slate-700">{p.incident_time_estimate}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-slate-700">{formatDate(p.createdAt)}</td>
