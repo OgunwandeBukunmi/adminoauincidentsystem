@@ -65,6 +65,7 @@ const API =
     : "http://localhost:5000/api/admin"
 
 
+
 const STATUS = {
   pending: {
     label: "Pending",
@@ -100,6 +101,7 @@ async function api(
       "Content-Type": "application/json",
       Authorization: `Bearer ${localStorage.getItem("token")}`,
       ...options.headers,
+      cache: 'no-store'
     },
   });
 
@@ -1158,6 +1160,7 @@ export default function Dashboard() {
         cursor = data.nextCursor
         hasMore = Boolean(data.hasMore && cursor)
       }
+      console.log(all)
       setPosts(all)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
@@ -1249,14 +1252,52 @@ export default function Dashboard() {
     window.location.reload()
   }
 
-  const navItem = (key: "home" | "posts", label: string, badge: number = 0) => (
+  const navItem = (
+    key: "home" | "posts",
+    label: string,
+    icon: "home" | "posts",
+    badge: number = 0
+  ) => (
     <button
       onClick={() => goTo(key)}
       aria-current={page === key ? "page" : undefined}
-      className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium transition-colors ${page === key ? "bg-teal-700 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+      className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${page === key
+        ? "bg-teal-700 text-white shadow-xs font-semibold"
+        : "text-slate-300 hover:bg-slate-800 hover:text-white"
         }`}
     >
-      {label}
+      {icon === "home" ? (
+        <svg
+          className={`h-4.5 w-4.5 transition-colors ${page === key ? "text-white" : "text-slate-400 group-hover:text-white"
+            }`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+          />
+        </svg>
+      ) : (
+        <svg
+          className={`h-4.5 w-4.5 transition-colors ${page === key ? "text-white" : "text-slate-400 group-hover:text-white"
+            }`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
+        </svg>
+      )}
+      <span className="flex-1 text-left">{label}</span>
       {badge > 0 && (
         <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs font-semibold text-slate-900">
           {badge}
@@ -1267,32 +1308,131 @@ export default function Dashboard() {
 
   return (
     <section className="flex min-h-screen bg-slate-50 text-slate-900">
-      <aside id="sidebar" className="flex w-56 shrink-0 flex-col bg-slate-900 p-4">
-        <h1 className="mb-6 px-3 text-base font-semibold text-white">Incident reports</h1>
-        <nav className="space-y-1">
-          {navItem("home", "Home")}
-          {navItem("posts", "Posts", counts.pending)}
-        </nav>
-        <button
-          onClick={signOut}
-          className="mt-auto rounded-md px-3 py-2 text-left text-sm text-slate-400 hover:bg-slate-800 hover:text-white"
-        >
-          Sign out
-        </button>
-      </aside>
+      <aside id="sidebar" className="hidden md:flex w-64 shrink-0 flex-col bg-slate-900 border-r border-slate-800/80 p-4">
+        {/* Brand Header */}
+        <div className="flex items-center gap-3 px-2 py-2 mb-6 border-b border-slate-800 pb-5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md shadow-teal-900/30">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-sm font-bold text-white tracking-tight truncate">Incident Reports</h1>
+            <p className="text-[11px] font-medium text-teal-400">Admin Portal</p>
+          </div>
+        </div>
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        <div id="topbar" className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-          <h2 className="text-lg font-semibold">{page === "home" ? "Overview" : "All posts"}</h2>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-600">{admin || "Admin"}</span>
+        {/* Section Label */}
+        <div className="px-3 mb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Menu</p>
+        </div>
+
+        {/* Navigation */}
+        <nav className="space-y-1.5 flex-1">
+          {navItem("home", "Overview", "home")}
+          {navItem("posts", "All Posts", "posts", counts.pending)}
+        </nav>
+
+        {/* User Card & Sign Out */}
+        <div className="border-t border-slate-800 pt-3 mt-auto space-y-2">
+          <div className="flex items-center gap-3 px-2.5 py-2 rounded-lg bg-slate-800/50 border border-slate-800/80">
             <span
               aria-hidden="true"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-700 text-sm font-semibold text-white"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-bold text-white shadow-xs"
             >
               {(admin || "A").charAt(0).toUpperCase()}
             </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-white">{admin || "Admin"}</p>
+              <p className="truncate text-[10px] text-slate-400">Signed in</p>
+            </div>
           </div>
+
+          <button
+            onClick={signOut}
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            <span>Sign out</span>
+          </button>
+        </div>
+      </aside>
+
+      <main className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile Header & Navigation */}
+        <header className="sticky top-0 z-30 flex flex-col border-b border-slate-200 bg-white shadow-xs md:hidden">
+          {/* Top Brand Bar */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-700 text-white shadow-xs">
+                <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-sm font-bold text-slate-900 leading-tight">Incident Reports</h1>
+                <p className="text-[11px] text-slate-500 capitalize">{admin || "Admin"}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={signOut}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition-colors"
+                title="Sign out"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span>Sign out</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Segmented Tab Navigation */}
+          <nav className="flex p-1.5 gap-1.5 bg-slate-100/70">
+            <button
+              type="button"
+              onClick={() => goTo("home")}
+              className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-semibold transition-all ${page === "home"
+                ? "bg-white text-teal-800 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                }`}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+              <span>Overview</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => goTo("posts")}
+              className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-semibold transition-all ${page === "posts"
+                ? "bg-white text-teal-800 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                }`}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Posts</span>
+              {counts.pending > 0 && (
+                <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${page === "posts" ? "bg-amber-100 text-amber-800" : "bg-amber-200/80 text-amber-900"
+                  }`}>
+                  {counts.pending}
+                </span>
+              )}
+            </button>
+          </nav>
+        </header>
+
+        {/* Desktop Topbar */}
+        <div id="topbar" className="hidden md:flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+          <h2 className="text-lg font-semibold">{page === "home" ? "Overview" : "All posts"}</h2>
         </div>
 
         <div className="flex-1 p-6">
