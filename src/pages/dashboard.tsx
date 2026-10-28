@@ -28,6 +28,8 @@ type IncidentPost = {
   role?: string;
   deletedAt?: string | Date | null;
   deletedBy?: string;
+  statusChangeBy?: string | null;
+  statusChangeTime?: string | Date | null;
 };
 
 type PostForm = {
@@ -940,6 +942,18 @@ function PostModal({ post, allPosts, onClose, onStatusChange, onDelete }: {
           </p>
         )}
 
+        {post.status == "approved" && post.statusChangeBy && post.statusChangeTime ? (
+          <p className="rounded-md bg-green-100 px-3 py-2 text-sm text-green-600">
+            Approved by {post.statusChangeBy} on {post.statusChangeTime ? formatDate(post.statusChangeTime) : "-"}
+          </p>
+        ) : post.status == "rejected" && post.statusChangeBy && post.statusChangeTime ? (
+          <p className="rounded-md bg-red-100 px-3 py-2 text-sm text-red-600">
+            Rejected by {post.statusChangeBy ?? "unknown"} on {post.statusChangeTime ? formatDate(post.statusChangeTime) : "-"}
+          </p>
+        ) : null}
+
+
+
         {error && (
           <p role="alert" className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
             {error}
@@ -1320,7 +1334,7 @@ export default function Dashboard() {
 
   return (
     <section className="flex min-h-screen bg-slate-50 text-slate-900">
-      <aside id="sidebar" className="hidden md:flex w-64 shrink-0 flex-col bg-slate-900 border-r border-slate-800/80 p-4">
+      <aside id="sidebar" className="hidden md:flex sticky top-0 h-screen w-64 shrink-0 flex-col bg-slate-900 border-r border-slate-800/80 p-4 overflow-y-auto">
         {/* Brand Header */}
         <div className="flex items-center gap-3 px-2 py-2 mb-6 border-b border-slate-800 pb-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md shadow-teal-900/30">
