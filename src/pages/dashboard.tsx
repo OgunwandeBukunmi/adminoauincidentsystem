@@ -35,6 +35,7 @@ type IncidentPost = {
 type PostForm = {
   title: string;
   category: string;
+  time_qualifier: string;
   incident_time_estimate: string;
   post_message: string;
   location: string
@@ -132,6 +133,32 @@ function formatDate(
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+/** Parses a stored value like "around 2024-12-01T14:30" into a readable string. */
+function formatIncidentTime(value: string | null | undefined): string {
+  if (!value) return "—";
+
+  const qualifiers = ["before", "around", "after", "exactly"];
+  const lower = value.trim().toLowerCase();
+  const matchedQualifier = qualifiers.find((q) => lower.startsWith(q));
+
+  if (matchedQualifier) {
+    const rest = value.slice(matchedQualifier.length).trim();
+    if (!rest) return matchedQualifier.charAt(0).toUpperCase() + matchedQualifier.slice(1);
+    const date = new Date(rest);
+    if (Number.isNaN(date.getTime())) return value; // unrecognised — show raw
+    const formatted = date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+    return `${matchedQualifier.charAt(0).toUpperCase() + matchedQualifier.slice(1)} ${formatted}`;
+  }
+
+  // No qualifier prefix — try to parse as a plain date/datetime
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  }
+
+  return value; // fallback: show as-is
 }
 
 function StatusBadge({ status }: { status: PostStatus | undefined }) {
@@ -433,6 +460,7 @@ function CreatePostModal({
   const [form, setForm] = useState<PostForm>({
     title: "",
     category: "",
+    time_qualifier: "around",
     incident_time_estimate: "",
     post_message: "",
     location: "",
@@ -534,10 +562,14 @@ function CreatePostModal({
         imageUrls = uploaded.map((img) => img.url);
       }
 
+      const combinedTime = incident_time_estimate
+        ? `${form.time_qualifier} ${incident_time_estimate}`.trim()
+        : ""
       const payload = {
         title: title.trim(),
         category: category.trim(),
-        incident_time_estimate: incident_time_estimate.trim(),
+        time_qualifier: form.time_qualifier,
+        incident_time_estimate: combinedTime,
         post_message: post_message.trim(),
         images: imageUrls,
         post_time: new Date().toISOString(),
@@ -583,12 +615,31 @@ function CreatePostModal({
             </datalist>
           </Field>
           <Field label="Incident time estimate">
-            <input
-              className={inputCls}
-              placeholder="e.g. Around 6pm yesterday"
-              value={form.incident_time_estimate}
-              onChange={set("incident_time_estimate")}
-            />
+            <div className="flex flex-col gap-2">
+              {/* Pill toggle: before / around / after */}
+              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 self-start">
+                {(["before", "around", "after"] as const).map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, time_qualifier: q }))}
+                    className={`rounded-md px-3 py-1 text-xs font-medium capitalize transition-all duration-150 ${form.time_qualifier === q
+                        ? "bg-white text-teal-700 shadow-sm ring-1 ring-slate-200"
+                        : "text-slate-500 hover:text-slate-700"
+                      }`}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+              {/* Datetime input */}
+              <input
+                type="datetime-local"
+                className={inputCls}
+                value={form.incident_time_estimate}
+                onChange={set("incident_time_estimate")}
+              />
+            </div>
           </Field>
         </div>
         <Field label="Location">
@@ -1139,7 +1190,7 @@ function PostsPage({ posts, categories, filters, setFilters, onSelect }: {
                     <StatusBadge status={p.status} />
                   )}
                 </td>
-                <td className="px-4 py-3 text-slate-700">{p.incident_time_estimate}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-slate-700">{formatIncidentTime(p.incident_time_estimate)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-slate-700">{formatDate(p.createdAt)}</td>
               </tr>
             ))}
